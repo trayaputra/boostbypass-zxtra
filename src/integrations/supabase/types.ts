@@ -14,16 +14,198 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      app_settings: {
+        Row: {
+          id: string
+          setting_key: string
+          setting_value: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          setting_key: string
+          setting_value?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          setting_key?: string
+          setting_value?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bypass_logs: {
+        Row: {
+          created_at: string
+          error_code: string | null
+          execution_time_ms: number | null
+          id: string
+          input_host: string | null
+          provider_id: string | null
+          provider_slug: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_code?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          input_host?: string | null
+          provider_id?: string | null
+          provider_slug: string
+          status: string
+        }
+        Update: {
+          created_at?: string
+          error_code?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          input_host?: string | null
+          provider_id?: string | null
+          provider_slug?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bypass_logs_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      providers: {
+        Row: {
+          auth_header: string
+          auth_mode: string
+          created_at: string
+          description: string
+          enabled: boolean
+          endpoint_url: string
+          headers_config: Json
+          id: string
+          input_parameter: string
+          last_test_at: string | null
+          last_test_error: string | null
+          last_test_status: string | null
+          method: string
+          name: string
+          response_mapping: Json
+          slug: string
+          sort_order: number
+          theme_config: Json
+          timeout_ms: number
+          updated_at: string
+        }
+        Insert: {
+          auth_header?: string
+          auth_mode?: string
+          created_at?: string
+          description?: string
+          enabled?: boolean
+          endpoint_url: string
+          headers_config?: Json
+          id?: string
+          input_parameter?: string
+          last_test_at?: string | null
+          last_test_error?: string | null
+          last_test_status?: string | null
+          method?: string
+          name: string
+          response_mapping?: Json
+          slug: string
+          sort_order?: number
+          theme_config?: Json
+          timeout_ms?: number
+          updated_at?: string
+        }
+        Update: {
+          auth_header?: string
+          auth_mode?: string
+          created_at?: string
+          description?: string
+          enabled?: boolean
+          endpoint_url?: string
+          headers_config?: Json
+          id?: string
+          input_parameter?: string
+          last_test_at?: string | null
+          last_test_error?: string | null
+          last_test_status?: string | null
+          method?: string
+          name?: string
+          response_mapping?: Json
+          slug?: string
+          sort_order?: number
+          theme_config?: Json
+          timeout_ms?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rate_limits: {
+        Row: {
+          count: number
+          key: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          key: string
+          window_start: string
+        }
+        Update: {
+          count?: number
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          last_login_at: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_login_at?: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_login_at?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      hit_rate_limit: {
+        Args: { _key: string; _max: number; _window_seconds: number }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +332,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin"],
+    },
   },
 } as const
