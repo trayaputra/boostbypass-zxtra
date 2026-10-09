@@ -168,7 +168,9 @@ export const adminMoveProvider = createServerFn({ method: "POST" })
     const i = arr.findIndex((p) => p.id === data.id);
     const j = data.direction === "up" ? i - 1 : i + 1;
     if (i < 0 || j < 0 || j >= arr.length) return { ok: true };
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+    const tmp = arr[i]!;
+    arr[i] = arr[j]!;
+    arr[j] = tmp;
     await Promise.all(arr.map((p, idx) => sb.from("providers").update({ sort_order: idx }).eq("id", p.id)));
     return { ok: true };
   });

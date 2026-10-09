@@ -27,7 +27,7 @@ function stageText(p: number) {
 const STAGES = [0, 20, 45, 70, 90];
 
 export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
-  const [selected, setSelected] = useState<string | null>(providers.length === 1 ? providers[0].slug : null);
+  const [selected, setSelected] = useState<string | null>(providers.length === 1 ? (providers[0]?.slug ?? null) : null);
   const [url, setUrl] = useState("");
   const [inputError, setInputError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -44,7 +44,7 @@ export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
     setCanPaste(typeof navigator !== "undefined" && !!navigator.clipboard?.readText);
   }, []);
   useEffect(() => {
-    if (providers.length === 1) setSelected(providers[0].slug);
+    if (providers.length === 1) setSelected(providers[0]?.slug ?? null);
     else if (selected && !providers.some((p) => p.slug === selected)) setSelected(null);
   }, [providers, selected]);
 

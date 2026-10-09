@@ -55,11 +55,12 @@ function ipv4ToInt(ip: string): number | null {
   if (!m) return null;
   const p = m.slice(1).map(Number);
   if (p.some((n) => n > 255)) return null;
-  return ((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3];
+  const [a = 0, b = 0, c = 0, d = 0] = p;
+  return ((a << 24) >>> 0) + (b << 16) + (c << 8) + d;
 }
 function inRange(ip: number, cidr: string): boolean {
   const [base, bits] = cidr.split("/");
-  const b = ipv4ToInt(base)!;
+  const b = ipv4ToInt(base ?? "")!;
   const mask = Number(bits) === 0 ? 0 : (~0 << (32 - Number(bits))) >>> 0;
   return (ip & mask) === (b & mask);
 }
@@ -77,7 +78,7 @@ export function isPrivateIp(ip: string): boolean {
   if (v6.startsWith("fe8") || v6.startsWith("fe9") || v6.startsWith("fea") || v6.startsWith("feb")) return true;
   if (v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("ff")) return true;
   const mapped = v6.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return isPrivateIp(mapped[1]);
+  if (mapped?.[1]) return isPrivateIp(mapped[1]);
   if (v6.startsWith("::ffff:") || v6.startsWith("64:ff9b:") || v6.startsWith("2001:db8")) return true;
   return false;
 }
@@ -190,7 +191,7 @@ export async function callProvider(cfg: ProviderConfig, inputUrl: string): Promi
   else if (cfg.auth_mode === "bearer") headers.set("authorization", `Bearer ${apiKey}`);
   else if (cfg.auth_mode === "query") target.searchParams.set(cfg.auth_header || "apikey", apiKey!);
 
-  let body: string | undefined;
+  let body: string | null = null;
   if (method === "GET") target.searchParams.set(cfg.input_parameter || "url", inputUrl);
   else {
     headers.set("content-type", "application/json");
