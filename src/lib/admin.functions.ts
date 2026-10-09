@@ -302,5 +302,5 @@ export const adminKeyStatus = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => {
     const key = process.env["BYPASS_API_KEY"];
-    return { configured: !!key && key.length > 0, length: key ? key.length : 0 };
+    return { configured: !!key && key.length > 0 };
   });
