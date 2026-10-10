@@ -269,37 +269,62 @@ function ProcessingCard({
 }: { progress: number; phase: Phase; startedAt: number; onCancel: () => void }) {
   const [elapsed, setElapsed] = useState(0);
   const running = phase === "validating" || phase === "detecting" || phase === "connecting" || phase === "processing";
+  
   useEffect(() => {
     if (!running) return;
-    const t = window.setInterval(() => setElapsed(Date.now() - startedAt), 200);
+    const t = window.setInterval(() => setElapsed(Date.now() - startedAt), 100);
     return () => window.clearInterval(t);
   }, [running, startedAt]);
+
   const pct = Math.floor(progress);
   const stopped = phase === "failed" || phase === "timeout";
+  
   const statusBadge = stopped ? (
     <span className="badge badge-error">Dihentikan</span>
   ) : phase === "success" ? (
     <span className="badge badge-success">Selesai</span>
   ) : (
-    <span className="badge badge-info"><Loader2 className="h-3 w-3 animate-spin" /> Memproses</span>
+    <span className="badge badge-process">
+      <Loader2 className="h-3 w-3 animate-spin text-cyan" /> MEMPROSES
+    </span>
   );
 
   return (
-    <div className="card3d card-glow p-5 sm:p-7">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-xs uppercase tracking-wider text-muted-foreground">Status bypass</span>
+    <div className="card3d card-glow pop-in p-5 sm:p-7" aria-live="polite">
+      {/* Header kartu proses dengan ikon 3D */}
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="font-mono text-xs text-muted-foreground">{(elapsed / 1000).toFixed(1)}s</span>
-          {statusBadge}
+          <span className="tone-cyan tone-icon h-11 w-11 shrink-0 animate-pulse">
+            <Sparkles className="h-5 w-5" />
+          </span>
+          <div>
+            <div className="font-display font-bold leading-tight">RESOLVING LINK</div>
+            <div className="text-xs text-muted-foreground">{(elapsed / 1000).toFixed(1)} dtk berjalan</div>
+          </div>
         </div>
+        {statusBadge}
       </div>
-      <div className="mt-6 flex items-baseline justify-between">
-        <span className="font-display text-4xl font-extrabold tracking-tight sm:text-5xl">{pct}%</span>
-        <span className="text-sm font-semibold text-muted-foreground">{stageText(progress)}</span>
+
+      {/* Angka persentase besar 3D + teks tahapan */}
+      <div className="mt-6 flex items-end justify-between gap-4">
+        <div className="font-display text-5xl font-extrabold tabular-nums tracking-tight sm:text-6xl">
+          <span className={stopped ? "text-muted-foreground" : "grad-text-cool"}>{pct}</span>
+          <span className="text-2xl text-muted-foreground">%</span>
+        </div>
+        <p className="pb-1.5 text-right text-xs font-semibold text-muted-foreground sm:text-sm">
+          {stopped ? "Proses gagal" : stageText(progress)}
+        </p>
       </div>
-      <div className="progress3d-track mt-4" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-        <div className="progress3d-fill" style={{ width: `${pct}%` }} />
+
+      {/* Batang progress bar gradasi neon yang bergerak */}
+      <div className="progress-track mt-4" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div 
+          className="progress-fill" 
+          style={{ width: `${pct}%` }} 
+          data-running={running} 
+        />
       </div>
+
       {running && (
         <button type="button" className="btn3d btn-ghost btn-sm mt-5" onClick={onCancel}>
           <X className="h-4 w-4" /> BATALKAN
@@ -308,6 +333,7 @@ function ProcessingCard({
     </div>
   );
 }
+
 
 function ResultCard({ result, onAgain }: { result: Done; onAgain: () => void }) {
   const [copied, setCopied] = useState(false);
