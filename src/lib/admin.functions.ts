@@ -137,7 +137,7 @@ async function loginImpl(data: { email: string; password: string }) {
       access_token: auth.session.access_token,
       refresh_token: auth.session.refresh_token,
     };
-  });
+}
 
 export const checkAdmin = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
