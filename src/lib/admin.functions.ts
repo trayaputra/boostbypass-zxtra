@@ -49,9 +49,24 @@ const loginInput = z.object({ email: z.string().trim().email().max(200), passwor
 export const adminLogin = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => loginInput.parse(d))
   .handler(async ({ data }) => {
+    const missing = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"].filter((k) => !(process.env[k] ?? "").trim());
+    if (!(process.env["SUPABASE_PUBLISHABLE_KEY"] || process.env["SUPABASE_ANON_KEY"] || process.env["VITE_SUPABASE_PUBLISHABLE_KEY"]))
+      missing.push("SUPABASE_PUBLISHABLE_KEY");
+    if (missing.length) return { ok: false as const, message: `Pengaturan server kurang: ${missing.join(", ")}.` };
+    try {
+      return await loginImpl(data);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      console.error("[adminLogin] crash:", m);
+      return { ok: false as const, message: `Error server: ${m.replace(/eyJ[\w.-]+|sb_[\w-]+/g, "***").slice(0, 300)}` };
+    }
+  });
+
+async function loginImpl(data: { email: string; password: string }) {
     const sb = await admin();
     const ip = clientIp(getRequest());
-    const { data: ok } = await sb.rpc("hit_rate_limit", { _key: `login:${ip}`, _window_seconds: 900, _max: 8 });
+    const { data: ok, error: rlErr } = await sb.rpc("hit_rate_limit", { _key: `login:${ip}`, _window_seconds: 900, _max: 8 });
+    if (rlErr) return { ok: false as const, message: `Database error (rate limit): ${rlErr.message}. Pastikan script SQL tabel sudah dijalankan & SERVICE_ROLE_KEY benar.` };
     if (ok === false)
       return { ok: false as const, message: "Terlalu banyak percobaan login. Coba lagi dalam 15 menit." };
 

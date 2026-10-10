@@ -41,10 +41,11 @@ function LoginPage() {
         return;
       }
       const { error: se } = await supabase.auth.setSession({ access_token: res.access_token, refresh_token: res.refresh_token });
-      if (se) throw se;
+      if (se) throw new Error(`Gagal menyimpan sesi di browser (cek VITE_SUPABASE_URL & VITE_SUPABASE_PUBLISHABLE_KEY): ${se.message}`);
       navigate({ to: "/admin", replace: true });
-    } catch {
-      setError("Tidak dapat login saat ini. Coba lagi.");
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      setError(`Tidak dapat login: ${m || "error tidak diketahui"}`);
     } finally {
       setLoading(false);
     }
