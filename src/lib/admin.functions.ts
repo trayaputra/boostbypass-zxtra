@@ -21,8 +21,9 @@ async function admin() {
 }
 
 function publicClient() {
-  const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
-  return createClient<Database>(process.env["SUPABASE_URL"]!, key, {
+  const key = (process.env["SUPABASE_PUBLISHABLE_KEY"] || process.env["SUPABASE_ANON_KEY"] || process.env["VITE_SUPABASE_PUBLISHABLE_KEY"] || "").trim();
+  const url = (process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"] || "").trim();
+  return createClient<Database>(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
     global: {
       fetch: (input, init) => {
