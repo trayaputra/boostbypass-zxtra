@@ -57,7 +57,7 @@ export const getHealth = createServerFn({ method: "GET" }).handler(
 );
 
 const bypassInput = z.object({
-  provider: z.string().min(1).max(60).regex(/^[a-z0-9-]+$/),
+  provider: z.string().min(1).max(60).regex(/^[a-z0-9-]+$/).optional(),
   url: z.string().max(4096),
 });
 
@@ -80,8 +80,31 @@ export const runBypass = createServerFn({ method: "POST" })
     });
     if (allowed === false) return err("RATE_LIMITED");
 
-    const { data: p } = await supabaseAdmin.from("providers").select("*").eq("slug", data.provider).maybeSingle();
-    if (!p || !p.enabled) return err("PROVIDER_INACTIVE");
+    // Otomatis cari provider dari backend
+    const { data: providers } = await supabaseAdmin
+      .from("providers")
+      .select("*")
+      .eq("enabled", true)
+      .order("sort_order", { ascending: true });
+
+    if (!providers || providers.length === 0) return err("PROVIDER_INACTIVE");
+
+    let p: (typeof providers)[number] | undefined;
+
+    if (data.provider) {
+      p = providers.find((item) => item.slug === data.provider);
+    } else {
+      // Cocokkan host URL dengan slug atau deskripsi provider
+      const host = hostOf(check.url).toLowerCase();
+      p = providers.find((item) => {
+        const slug = item.slug.toLowerCase();
+        return host.includes(slug) || (item.description ?? "").toLowerCase().includes(host);
+      });
+      // Fallback: gunakan provider aktif pertama jika tidak ada kecocokan khusus
+      if (!p) p = providers[0];
+    }
+
+    if (!p) return err("PROVIDER_INACTIVE");
 
     const outcome = await callProvider(p as unknown as ProviderConfig, check.url);
     await supabaseAdmin.from("bypass_logs").insert({
@@ -98,7 +121,7 @@ export const runBypass = createServerFn({ method: "POST" })
     }
     return {
       success: true,
-      provider: p.slug,
+      provider: p.name || p.slug,
       originalUrl: check.url,
       destinationUrl: outcome.destinationUrl,
       executionTimeMs: outcome.executionTimeMs ?? outcome.elapsedMs,
