@@ -2,17 +2,28 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
-  AlertTriangle, CheckCircle2, ClipboardPaste, Copy, ExternalLink, Loader2, RotateCcw, X,
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardPaste,
+  Copy,
+  ExternalLink,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { runBypass } from "@/lib/public.functions";
 import {
-  checkUserUrl, ERROR_MESSAGES, hostOf, isSafeHttpUrl,
-  type BypassErrorCode, type PublicProvider,
+  checkUserUrl,
+  ERROR_MESSAGES,
+  hostOf,
+  isSafeHttpUrl,
+  type BypassErrorCode,
+  type PublicProvider,
 } from "@/lib/url";
-import { ProviderIcon } from "./ProviderIcon";
 
-type Phase = "idle" | "validating" | "connecting" | "processing" | "success" | "failed" | "timeout";
-type Done = { originalUrl: string; destinationUrl: string; executionTimeMs: number | null; provider: PublicProvider };
+type Phase = "idle" | "validating" | "detecting" | "connecting" | "processing" | "success" | "failed" | "timeout";
+type Done = { originalUrl: string; destinationUrl: string; executionTimeMs: number | null; providerName: string };
 
 const CLIENT_TIMEOUT_MS = 65000;
 
@@ -20,14 +31,13 @@ function stageText(p: number) {
   if (p >= 100) return "Link berhasil ditemukan!";
   if (p >= 90) return "Menunggu hasil final...";
   if (p >= 70) return "Memproses respons...";
-  if (p >= 45) return "Mencari URL tujuan...";
-  if (p >= 20) return "Menghubungkan ke provider...";
+  if (p >= 50) return "Mencari URL tujuan...";
+  if (p >= 25) return "Mencari provider yang sesuai...";
+  if (p >= 10) return "Menganalisis link...";
   return "Menyiapkan permintaan...";
 }
-const STAGES = [0, 20, 45, 70, 90];
 
 export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
-  const [selected, setSelected] = useState<string | null>(providers.length === 1 ? (providers[0]?.slug ?? null) : null);
   const [url, setUrl] = useState("");
   const [inputError, setInputError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -43,18 +53,12 @@ export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
   useEffect(() => {
     setCanPaste(typeof navigator !== "undefined" && !!navigator.clipboard?.readText);
   }, []);
-  useEffect(() => {
-    if (providers.length === 1) setSelected(providers[0]?.slug ?? null);
-    else if (selected && !providers.some((p) => p.slug === selected)) setSelected(null);
-  }, [providers, selected]);
 
   const stopTimer = () => {
     if (timerRef.current) window.clearInterval(timerRef.current);
     timerRef.current = null;
   };
   useEffect(() => stopTimer, []);
-
-  const provider = providers.find((p) => p.slug === selected) ?? null;
 
   const reset = () => {
     runIdRef.current++;
@@ -78,46 +82,43 @@ export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
       return;
     }
     setInputError(null);
-    if (!provider) {
-      setInputError("Pilih provider terlebih dahulu.");
-      return;
-    }
     const runId = ++runIdRef.current;
     setUrl(check.url);
     setResult(null);
     setError(null);
     setPhase("validating");
-    setProgress(4);
+    setProgress(5);
     setStartedAt(Date.now());
 
-    // Simulated, non-linear progress that never passes 93% before a real result.
+    // Simulasi progress yang mencakup pencarian provider
     stopTimer();
     timerRef.current = window.setInterval(() => {
       setProgress((p) => {
         const cap = 93;
         if (p >= cap) return p;
-        const step = p < 20 ? 2.6 : p < 45 ? 1.9 : p < 70 ? 1.3 : p < 90 ? 0.7 : 0.15;
+        const step = p < 25 ? 2.5 : p < 50 ? 1.8 : p < 75 ? 1.2 : p < 90 ? 0.6 : 0.15;
         return Math.min(cap, p + step * (0.5 + Math.random()));
       });
     }, 160);
-    window.setTimeout(() => runIdRef.current === runId && setPhase("connecting"), 250);
-    window.setTimeout(() => runIdRef.current === runId && setPhase((ph) => (ph === "connecting" ? "processing" : ph)), 1600);
+
+    window.setTimeout(() => runIdRef.current === runId && setPhase("detecting"), 300);
+    window.setTimeout(() => runIdRef.current === runId && setPhase("connecting"), 1000);
+    window.setTimeout(() => runIdRef.current === runId && setPhase((ph) => (ph === "connecting" ? "processing" : ph)), 2000);
 
     const timeout = new Promise<"timeout">((r) => window.setTimeout(() => r("timeout"), CLIENT_TIMEOUT_MS));
     let res: Awaited<ReturnType<typeof bypass>> | "timeout";
     try {
-      res = await Promise.race([bypass({ data: { provider: provider.slug, url: check.url } }), timeout]);
+      res = await Promise.race([bypass({ data: { url: check.url } }), timeout]);
     } catch {
       if (runIdRef.current === runId) fail("SERVER_UNAVAILABLE");
       return;
     }
-    if (runIdRef.current !== runId) return; // cancelled
+    if (runIdRef.current !== runId) return;
     if (res === "timeout") return fail("TIMEOUT");
     if (!res.success) return fail(res.error.code, res.error.message);
     if (!isSafeHttpUrl(res.destinationUrl)) return fail("INVALID_RESPONSE");
 
     stopTimer();
-    // Animate quickly to 100% only now that a valid result exists.
     const from = await new Promise<number>((r) => setProgress((p) => (r(p), p)));
     const t0 = performance.now();
     await new Promise<void>((done) => {
@@ -138,11 +139,11 @@ export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
       originalUrl: res.originalUrl,
       destinationUrl: res.destinationUrl,
       executionTimeMs: res.executionTimeMs,
-      provider,
+      providerName: res.provider,
     });
-  }, [url, provider, bypass]);
+  }, [url, bypass]);
 
-  const busy = phase === "validating" || phase === "connecting" || phase === "processing" || (phase === "success" && !result);
+  const busy = phase === "validating" || phase === "detecting" || phase === "connecting" || phase === "processing" || (phase === "success" && !result);
 
   const paste = async () => {
     try {
@@ -158,49 +159,6 @@ export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6">
-      {/* Provider selector */}
-      <section aria-label="Pilih provider">
-        <div className="mb-3 flex items-center justify-between px-1">
-          <span className="label3d">Provider</span>
-          {providers.length > 1 && <span className="text-xs text-muted-foreground">{providers.length} tersedia</span>}
-        </div>
-        {providers.length === 0 ? (
-          <div className="card3d p-5 text-sm text-muted-foreground">
-            <span className="badge badge-warn mb-2">Belum tersedia</span>
-            <p>Belum ada provider yang diaktifkan admin. Silakan coba lagi nanti.</p>
-          </div>
-        ) : (
-          <div className="scroll-x -mx-1 flex gap-3 px-1 pb-3 sm:grid sm:grid-cols-2 sm:overflow-visible">
-            {providers.map((p) => {
-              const active = selected === p.slug;
-              return (
-                <button
-                  key={p.slug}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setSelected(p.slug)}
-                  data-active={active}
-                  aria-pressed={active}
-                  className={`tile3d tone-${p.color} flex min-w-[220px] items-center gap-3 p-3.5 sm:min-w-0`}
-                >
-                  <span className="tone-icon h-11 w-11 shrink-0">
-                    <ProviderIcon icon={p.icon} className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2 font-display font-bold">
-                      {p.name}
-                      {active && <CheckCircle2 className="h-4 w-4 text-[var(--tone)]" />}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">{p.description || "Provider bypass"}</span>
-                  </span>
-                  <span className="pulse-dot shrink-0" style={{ ["--tone" as string]: "var(--emerald)" }} title="Aktif" />
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
       {/* Input card */}
       {!result && (phase === "idle" || phase === "failed" || phase === "timeout") && (
         <form
@@ -211,15 +169,11 @@ export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
           }}
           noValidate
         >
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="mb-3 flex items-center justify-between">
             <label htmlFor="link" className="label3d">Paste your link</label>
-            {provider ? (
-              <span className={`badge tone-${provider.color}`}>
-                <ProviderIcon icon={provider.icon} className="h-3 w-3" /> {provider.name}
-              </span>
-            ) : (
-              <span className="badge badge-muted">Pilih provider</span>
-            )}
+            <span className="badge badge-success">
+              <Sparkles className="h-3 w-3 text-cyan" /> Auto-Detect Provider
+            </span>
           </div>
           <div className="relative">
             <input
@@ -252,18 +206,17 @@ export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
             </div>
           </div>
           <p id="link-msg" className={`mt-2 min-h-5 text-sm ${inputError ? "text-pink" : "text-muted-foreground"}`}>
-            {inputError ?? "Mendukung link http:// dan https://"}
+            {inputError ?? "Mendukung shortlink http:// dan https:// (otomatis memilih provider)"}
           </p>
-          <button type="submit" className="btn3d mt-3 w-full" disabled={providers.length === 0}>
+          <button type="submit" className="btn3d mt-3 w-full" disabled={busy}>
             BYPASS LINK
           </button>
         </form>
       )}
 
       {/* Processing card */}
-      {(busy || ((phase === "failed" || phase === "timeout") && progress > 0)) && !result && provider && (
+      {(busy || ((phase === "failed" || phase === "timeout") && progress > 0)) && !result && (
         <ProcessingCard
-          provider={provider}
           progress={progress}
           phase={phase}
           startedAt={startedAt}
@@ -312,10 +265,10 @@ export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
 }
 
 function ProcessingCard({
-  provider, progress, phase, startedAt, onCancel,
-}: { provider: PublicProvider; progress: number; phase: Phase; startedAt: number; onCancel: () => void }) {
+  progress, phase, startedAt, onCancel,
+}: { progress: number; phase: Phase; startedAt: number; onCancel: () => void }) {
   const [elapsed, setElapsed] = useState(0);
-  const running = phase === "validating" || phase === "connecting" || phase === "processing";
+  const running = phase === "validating" || phase === "detecting" || phase === "connecting" || phase === "processing";
   useEffect(() => {
     if (!running) return;
     const t = window.setInterval(() => setElapsed(Date.now() - startedAt), 200);
@@ -328,45 +281,27 @@ function ProcessingCard({
   ) : phase === "success" ? (
     <span className="badge badge-success">Selesai</span>
   ) : (
-    <span className="badge badge-process"><Loader2 className="h-3 w-3 animate-spin" /> {phase}</span>
+    <span className="badge badge-info"><Loader2 className="h-3 w-3 animate-spin" /> Memproses</span>
   );
+
   return (
-    <div className="card3d card-glow pop-in p-5 sm:p-7" aria-live="polite">
-      <div className="flex items-center gap-3">
-        <span className={`tone-${provider.color} tone-icon h-12 w-12`}>
-          <ProviderIcon icon={provider.icon} className="h-6 w-6" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="font-display text-lg font-bold">{provider.name}</div>
-          <div className="text-xs text-muted-foreground">{(elapsed / 1000).toFixed(1)} dtk berjalan</div>
+    <div className="card3d card-glow p-5 sm:p-7">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="text-xs uppercase tracking-wider text-muted-foreground">Status bypass</span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-xs text-muted-foreground">{(elapsed / 1000).toFixed(1)}s</span>
+          {statusBadge}
         </div>
-        {statusBadge}
       </div>
-      <div className="mt-6 flex items-end justify-between gap-4">
-        <div className="font-display text-6xl font-extrabold tabular-nums sm:text-7xl">
-          <span className={stopped ? "text-muted-foreground" : "grad-text-cool"}>{pct}</span>
-          <span className="text-2xl text-muted-foreground">%</span>
-        </div>
-        <p className="pb-2 text-right text-sm font-semibold">
-          {stopped ? "Proses gagal" : stageText(pct)}
-        </p>
+      <div className="mt-6 flex items-baseline justify-between">
+        <span className="font-display text-4xl font-extrabold tracking-tight sm:text-5xl">{pct}%</span>
+        <span className="text-sm font-semibold text-muted-foreground">{stageText(progress)}</span>
       </div>
-      <div className="progress-track mt-4" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-        <div className="progress-fill" data-running={running} style={{ width: `${Math.max(3, progress)}%` }} />
+      <div className="progress3d-track mt-4" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className="progress3d-fill" style={{ width: `${pct}%` }} />
       </div>
-      <ol className="mt-5 grid grid-cols-5 gap-1.5">
-        {STAGES.map((s, i) => (
-          <li
-            key={s}
-            className={`h-1.5 rounded-full transition-colors ${pct >= s && !stopped ? (i === 4 && pct >= 100 ? "bg-emerald" : "bg-cyan") : "bg-ink"}`}
-          />
-        ))}
-      </ol>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Persentase adalah indikator visual; hasil hanya ditampilkan setelah provider memberikan URL tujuan yang valid.
-      </p>
       {running && (
-        <button type="button" className="btn3d btn-ghost btn-sm mt-4" onClick={onCancel}>
+        <button type="button" className="btn3d btn-ghost btn-sm mt-5" onClick={onCancel}>
           <X className="h-4 w-4" /> BATALKAN
         </button>
       )}
@@ -404,11 +339,11 @@ function ResultCard({ result, onAgain }: { result: Done; onAgain: () => void }) 
         )}
       </div>
       <div className="mt-5 flex items-center gap-3">
-        <span className={`tone-${result.provider.color} tone-icon h-12 w-12 shrink-0`}>
-          <ProviderIcon icon={result.provider.icon} className="h-6 w-6" />
+        <span className="tone-cyan tone-icon h-12 w-12 shrink-0">
+          <Sparkles className="h-6 w-6" />
         </span>
         <div className="min-w-0">
-          <div className="text-xs text-muted-foreground">via {result.provider.name}</div>
+          <div className="text-xs text-muted-foreground">Resolved via {result.providerName}</div>
           <div className="font-display text-xl font-bold break-all sm:text-2xl">{domain}</div>
         </div>
       </div>
@@ -423,7 +358,7 @@ function ResultCard({ result, onAgain }: { result: Done; onAgain: () => void }) 
         </div>
       </div>
       <button type="button" className="btn3d btn-open mt-6 w-full" onClick={open}>
-        BUKA LINK ↗ <ExternalLink className="sr-only" />
+        BUKA LINK  <ExternalLink className="sr-only" />
       </button>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button type="button" className="btn3d btn-copy btn-sm" onClick={copy}>
