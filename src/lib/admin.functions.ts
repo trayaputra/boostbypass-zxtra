@@ -73,8 +73,41 @@ export const adminLogin = createServerFn({ method: "POST" })
     }
 
     const pub = publicClient();
-    const { data: auth, error } = await pub.auth.signInWithPassword({ email, password: data.password });
-    if (error || !auth.session) return { ok: false as const, message: "Email atau password salah." };
+    let { data: auth, error } = await pub.auth.signInWithPassword({ email, password: data.password });
+
+    // Repair path: if the typed credentials match the configured admin env values,
+    // reset that account's password/confirmation via the admin API and grant the role
+    // (fixes accounts created by hand in SQL with bad hashes or NULL token columns).
+    if (error || !auth.session) {
+      const bEmail = (process.env["ADMIN_BOOTSTRAP_EMAIL"] ?? "").trim().toLowerCase();
+      const bPass = process.env["ADMIN_BOOTSTRAP_PASSWORD"] ?? "";
+      if (bEmail && bPass.length >= 10 && safeEqual(email, bEmail) && safeEqual(data.password, bPass)) {
+        let userId: string | undefined;
+        const list = await sb.auth.admin.listUsers({ perPage: 1000 });
+        userId = list.data?.users.find((u) => u.email?.toLowerCase() === email)?.id;
+        if (userId) {
+          await sb.auth.admin.updateUserById(userId, { password: bPass, email_confirm: true });
+        } else {
+          const created = await sb.auth.admin.createUser({ email, password: bPass, email_confirm: true });
+          userId = created.data.user?.id;
+        }
+        if (userId) {
+          await sb.from("user_roles").upsert({ user_id: userId, role: "admin" }, { onConflict: "user_id,role" });
+          ({ data: auth, error } = await pub.auth.signInWithPassword({ email, password: data.password }));
+        }
+      }
+    }
+
+    if (error || !auth.session) {
+      console.error("[adminLogin] sign-in failed:", error?.status, error?.message);
+      const msg = (error?.message ?? "").toLowerCase();
+      if (msg.includes("not confirmed")) return { ok: false as const, message: "Email belum dikonfirmasi." };
+      if ((error?.status ?? 0) >= 500 || msg.includes("database error"))
+        return { ok: false as const, message: "Akun rusak di database (dibuat manual via SQL). Hapus akun itu lalu login dengan email/password dari pengaturan server." };
+      if (msg.includes("invalid api key") || (error?.status ?? 0) === 401)
+        return { ok: false as const, message: "Kunci server tidak cocok dengan database. Periksa SUPABASE_URL & SUPABASE_PUBLISHABLE_KEY." };
+      return { ok: false as const, message: "Email atau password salah." };
+    }
     const { data: roleRow } = await sb
       .from("user_roles")
       .select("id")
