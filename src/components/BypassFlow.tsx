@@ -183,7 +183,7 @@ export function BypassFlow({ providers }: { providers: PublicProvider[] }) {
               autoComplete="off"
               spellCheck={false}
               className={`input3d pr-24 ${inputError ? "shake" : ""}`}
-              placeholder="https://example.com/shortlink"
+              placeholder="Masukkan link untuk bypass"
               value={url}
               aria-invalid={!!inputError}
               aria-describedby="link-msg"
