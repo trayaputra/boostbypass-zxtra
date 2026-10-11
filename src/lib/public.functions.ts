@@ -127,3 +127,16 @@ export const runBypass = createServerFn({ method: "POST" })
       executionTimeMs: outcome.executionTimeMs ?? outcome.elapsedMs,
     };
   });
+
+export type Branding = { mode: "letter" | "image"; letter: string; imageUrl: string; from: string; to: string };
+export const DEFAULT_BRANDING: Branding = { mode: "letter", letter: "Z", imageUrl: "", from: "#26D9F8", to: "#16C784" };
+
+export const getBranding = createServerFn({ method: "GET" }).handler(async (): Promise<Branding> => {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin.from("app_settings").select("setting_value").eq("setting_key", "branding").maybeSingle();
+    return { ...DEFAULT_BRANDING, ...((data?.setting_value ?? {}) as Partial<Branding>) };
+  } catch {
+    return DEFAULT_BRANDING;
+  }
+});
