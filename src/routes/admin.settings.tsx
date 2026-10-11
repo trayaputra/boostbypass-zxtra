@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getBranding, DEFAULT_BRANDING, type Branding } from "@/lib/public.functions";
 import { Logo } from "@/components/ProviderIcon";
 import { useServerFn } from "@tanstack/react-start";
-import { KeyRound } from "lucide-react";
+import { KeyRound, ImagePlus } from "lucide-react";
 import { adminKeyStatus, adminSaveBranding } from "@/lib/admin.functions";
 import { PageHeader } from "@/components/admin/ui";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/admin/settings")({ component: SettingsPage });
 
