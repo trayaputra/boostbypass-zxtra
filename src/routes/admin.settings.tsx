@@ -116,3 +116,40 @@ function BrandingCard() {
     </div>
   );
 }
+
+function LogoUpload({ onUploaded }: { onUploaded: (url: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const onPick = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("File harus berupa gambar"); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error("Ukuran gambar maksimal 2 MB"); return; }
+    setUploading(true);
+    try {
+      const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+      const path = `logo-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("assets").upload(path, file, { cacheControl: "3600", upsert: false });
+      if (error) throw new Error(error.message);
+      const { data } = supabase.storage.from("assets").getPublicUrl(path);
+      onUploaded(data.publicUrl);
+      toast.success("Gambar terunggah — tekan SIMPAN LOGO");
+    } catch (e) {
+      toast.error(e instanceof Error ? `Gagal mengunggah: ${e.message}` : "Gagal mengunggah gambar");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+  return (
+    <div>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden"
+        onChange={(e) => void onPick(e.target.files?.[0])} />
+      <button type="button" disabled={uploading} onClick={() => inputRef.current?.click()}
+        className="btn3d btn-ghost inline-flex items-center gap-2">
+        <ImagePlus className="h-4 w-4" />
+        {uploading ? "MENGUNGGAH..." : "PILIH DARI GALERI"}
+      </button>
+      <p className="mt-2 text-xs text-muted-foreground">JPG/PNG/WebP, maksimal 2 MB. Gambar tersimpan di storage database.</p>
+    </div>
+  );
+}
