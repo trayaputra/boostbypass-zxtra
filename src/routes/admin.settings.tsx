@@ -100,9 +100,12 @@ function BrandingCard() {
             <input type="color" className="mt-1 h-12 w-full rounded-xl bg-ink" value={b.to} onChange={(e) => set("to", e.target.value)} /></label>
         </div>
       ) : (
-        <label className="block"><span className="label3d">URL gambar (https)</span>
-          <input className="input3d mt-1" placeholder="https://i.ibb.co/xxxx/logo.png" value={b.imageUrl}
-            onChange={(e) => set("imageUrl", e.target.value.trim())} /></label>
+        <div className="space-y-3">
+          <label className="block"><span className="label3d">URL gambar (https)</span>
+            <input className="input3d mt-1" placeholder="https://i.ibb.co/xxxx/logo.png" value={b.imageUrl}
+              onChange={(e) => set("imageUrl", e.target.value.trim())} /></label>
+          <LogoUpload onUploaded={(url) => { set("imageUrl", url); set("mode", "image"); }} />
+        </div>
       )}
       <div className="flex items-center gap-4">
         {preview}
