@@ -355,3 +355,26 @@ export const adminKeyStatus = createServerFn({ method: "GET" })
     const key = process.env["BYPASS_API_KEY"];
     return { configured: !!key && key.length > 0 };
   });
+
+const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Warna harus format #RRGGBB");
+export const adminSaveBranding = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        mode: z.enum(["letter", "image"]),
+        letter: z.string().trim().min(1).max(2),
+        imageUrl: z.union([z.literal(""), z.string().url().max(500).refine((u) => u.startsWith("https://"), "URL gambar harus https")]),
+        from: hex,
+        to: hex,
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const sb = await admin();
+    const { error } = await sb
+      .from("app_settings")
+      .upsert({ setting_key: "branding", setting_value: data, updated_at: new Date().toISOString() }, { onConflict: "setting_key" });
+    if (error) throw new Error("Gagal menyimpan logo");
+    return { ok: true };
+  });
