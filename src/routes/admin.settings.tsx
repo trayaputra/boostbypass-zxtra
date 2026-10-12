@@ -123,18 +123,14 @@ function LogoUpload({ onUploaded }: { onUploaded: (url: string) => void }) {
   const onPick = async (file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) { toast.error("File harus berupa gambar"); return; }
-    if (file.size > 2 * 1024 * 1024) { toast.error("Ukuran gambar maksimal 2 MB"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Ukuran gambar maksimal 5 MB"); return; }
     setUploading(true);
     try {
-      const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
-      const path = `logo-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("assets").upload(path, file, { cacheControl: "3600", upsert: false });
-      if (error) throw new Error(error.message);
-      const { data } = supabase.storage.from("assets").getPublicUrl(path);
-      onUploaded(data.publicUrl);
-      toast.success("Gambar terunggah — tekan SIMPAN LOGO");
-    } catch (e) {
-      toast.error(e instanceof Error ? `Gagal mengunggah: ${e.message}` : "Gagal mengunggah gambar");
+      const dataUrl = await downscaleImage(file, 256);
+      onUploaded(dataUrl);
+      toast.success("Gambar siap — tekan SIMPAN LOGO");
+    } catch {
+      toast.error("Gagal memproses gambar");
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -147,9 +143,31 @@ function LogoUpload({ onUploaded }: { onUploaded: (url: string) => void }) {
       <button type="button" disabled={uploading} onClick={() => inputRef.current?.click()}
         className="btn3d btn-ghost inline-flex items-center gap-2">
         <ImagePlus className="h-4 w-4" />
-        {uploading ? "MENGUNGGAH..." : "PILIH DARI GALERI"}
+        {uploading ? "MEMPROSES..." : "PILIH DARI GALERI"}
       </button>
-      <p className="mt-2 text-xs text-muted-foreground">JPG/PNG/WebP, maksimal 2 MB. Gambar tersimpan di storage database.</p>
+      <p className="mt-2 text-xs text-muted-foreground">JPG/PNG/WebP, maksimal 5 MB. Gambar otomatis dikecilkan agar ringan.</p>
     </div>
   );
+}
+
+function downscaleImage(file: File, maxSize: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("canvas"));
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("load")); };
+    img.src = url;
+  });
 }
