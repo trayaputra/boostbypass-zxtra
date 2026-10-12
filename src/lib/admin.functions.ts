@@ -364,7 +364,11 @@ export const adminSaveBranding = createServerFn({ method: "POST" })
       .object({
         mode: z.enum(["letter", "image"]),
         letter: z.string().trim().min(1).max(2),
-        imageUrl: z.union([z.literal(""), z.string().url().max(500).refine((u) => u.startsWith("https://"), "URL gambar harus https")]),
+        imageUrl: z.union([
+          z.literal(""),
+          z.string().url().max(500).refine((u) => u.startsWith("https://"), "URL gambar harus https"),
+          z.string().max(400_000).refine((u) => /^data:image\/(png|jpeg|webp);base64,/.test(u), "Gambar tidak valid"),
+        ]),
         from: hex,
         to: hex,
       })
